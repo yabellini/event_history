@@ -243,10 +243,14 @@ plot_ly(eventos_por_tipo, labels = ~tipo_clean, values = ~n, type = 'pie',
   layout(showlegend = FALSE)
 ```
 
-## Row {height=30%}
+# 📅 Actividad Calendarizada
+
+## Row {height="60%"}
+
+### Column {width="100%"}
 
 ```{r heatmap}
-#| title:  "Mapa de Calor de Actividad - Consolidado de todos los años"
+#| title:  "Consolidado de todos los años"
 
 # Consolidar eventos por día y mes (ignorando el año)
 eventos_consolidados <- eventos_por_dia |>
@@ -308,6 +312,58 @@ plot_ly(
     )
   )
 ```
+## Row {height="40%"}
+
+```{r}
+top_dias <- grid_completo |>
+  filter(n_eventos > 0) |>
+  arrange(desc(n_eventos)) |>
+  slice(1:10) |>
+  mutate(
+    fecha_display = format(fecha, "%d de %B")
+  ) |>
+  select(fecha_display, n_eventos, mes, dia)
+
+# Obtener años específicos para cada día top
+top_dias_detalle <- top_dias |>
+  rowwise() |>
+  mutate(
+    años = {
+      años_lista <- eventos |>
+        filter(!is.na(fecha_inicio)) |>
+        mutate(fecha_inicio = as.Date(fecha_inicio)) |>
+        filter(month(fecha_inicio) == mes, day(fecha_inicio) == dia) |>
+        pull(anio) |>
+        unique() |>
+        sort()
+      paste(años_lista, collapse = ", ")
+    }
+  ) |>
+  ungroup() |>
+  select(fecha_display, n_eventos, años)
+
+# Crear tabla interactiva
+
+datatable(
+  top_dias_detalle,
+  colnames = c("Fecha", "Total Eventos", "Años"),
+  options = list(
+    pageLength = 10,
+    dom = 't',
+    ordering = FALSE
+  ),
+  rownames = FALSE
+) |>
+  formatStyle(
+    'n_eventos',
+    background = styleColorBar(top_dias_detalle$n_eventos, '#40c463'),
+    backgroundSize = '100% 90%',
+    backgroundRepeat = 'no-repeat',
+    backgroundPosition = 'center'
+  )
+```
+
+
 
 # 📈 Análisis Detallado
 
@@ -448,7 +504,7 @@ plot_ly(rol_por_anio, x = ~anio, y = ~n, color = ~rol, type = 'scatter', mode = 
   )
 ```
 
-# 📋 Tabla Completa/Complete Table
+# 📋 Tabla Completa
 
 La fuente de estos datos son los informes de desempeño para INTA (1998-2022), previo a eso son los certificados que me otorgaron por las actividades realizadas y luego de 2022 es el registro que continúe realizando y que en general esta documentado en mi sitio web.  Sigo limpiando y mejorando los datos presentes por lo que el listado y los valores pueden cambiar. 
 
