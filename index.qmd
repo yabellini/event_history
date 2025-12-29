@@ -39,19 +39,21 @@ eventos <- eventos_raw |>
     # Convertir fecha_inicio y fecha_fin a fecha
     fecha_inicio = dmy(fecha_inicio),
     fecha_fin = dmy(fecha_fin),
-    # Si fecha_fin es NA, usar fecha_inicio
+    # Si fecha_fin es NA, usar fecha_inicio, porque en general es un evento de un solo dia.
+    # Arranca y termina en la misma fecha
     fecha_fin = if_else(is.na(fecha_fin), fecha_inicio, fecha_fin),
-    # Limpiar cantidad (convertir a numérico)
+    # Limpiar cantidad, cuando tiene NA no tengo registro de la cantidad de gente o bien aun
+    # no busque esos datos
     cantidad = as.numeric(cantidad),
     cantidad = replace_na(cantidad, 0),
-    # Crear categoría de formato
+    # Crear categoría de formato en castellano
     formato_cat = case_when(
       str_detect(tolower(formato), "online") ~ "Online",
       str_detect(tolower(formato), "hybrid") ~ "Híbrido",
       str_detect(tolower(formato), "in person") ~ "Presencial",
-      TRUE ~ "Otro"
+      TRUE ~ "Otro" # Si no tiene el dato del formato 
     ),
-    # Crear categoría de alcance geográfico
+    # Crear categoría de alcance geográfico (TODO: analizar si deberia abrir el "Otro")
     alcance = case_when(
       str_detect(tolower(lugar), "global") ~ "Global",
       str_detect(tolower(lugar), "latin|latam|chile|uruguay|colombia|brasil|bolivia|ecuador|venezuela|mexico") ~ "Latinoamérica",
@@ -61,9 +63,11 @@ eventos <- eventos_raw |>
     # Limpiar tipo de evento
     tipo_clean = str_to_title(tipo)
   ) |>
-  filter(rol != "Participant")
+  filter(rol != "Participant") # Esto no mostrarlo a menos que en algun momento decida agregar todos los eventos a los que asisti.
 
 # Crear datos expandidos para el mapa de calor (cada día entre fecha_inicio y fecha_fin)
+# Asumimos que cuando tiene una fecha de inicio y fin diferente fue un evento de varios dias # seguidos.  No en todos los casos es asi, pero es una aproximación razonable.
+
 eventos_expandidos <- eventos |>
   filter(!is.na(fecha_inicio)) |>
   rowwise() |>
