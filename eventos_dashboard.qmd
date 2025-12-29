@@ -1,0 +1,507 @@
+---
+title: "Mi Recorrido de Eventos/My Event History"
+subtitle: "Yanina Bellini Saibene"
+format: 
+  dashboard:
+    theme: cosmo
+    nav-buttons: 
+      - icon: github
+        href: https://github.com/yabellini
+      - icon: globe
+        href: https://yabellini.netlify.app/
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+# Cargar librerías
+library(tidyverse)
+library(crosstalk)
+library(DT)
+library(plotly)
+library(googlesheets4)
+library(scales)
+library(bslib)
+library(bsicons)
+library(htmltools)
+library(lubridate)
+
+# Leer datos
+eventos_raw <- read_csv("data/eventos.csv")
+
+# Limpiar y preparar datos
+eventos <- eventos_raw |>
+  janitor::clean_names() |>
+  mutate(
+    # Usar la columna anio que está más completa
+    anio = as.integer(anio),
+    # Convertir fecha_inicio y fecha_fin a fecha
+    fecha_inicio = dmy(fecha_inicio),
+    fecha_fin = dmy(fecha_fin),
+    # Si fecha_fin es NA, usar fecha_inicio
+    fecha_fin = if_else(is.na(fecha_fin), fecha_inicio, fecha_fin),
+    # Limpiar cantidad (convertir a numérico)
+    cantidad = as.numeric(cantidad),
+    cantidad = replace_na(cantidad, 0),
+    # Crear categoría de formato
+    formato_cat = case_when(
+      str_detect(tolower(formato), "online") ~ "Online",
+      str_detect(tolower(formato), "hybrid") ~ "Híbrido",
+      str_detect(tolower(formato), "in person") ~ "Presencial",
+      TRUE ~ "Otro"
+    ),
+    # Crear categoría de alcance geográfico
+    alcance = case_when(
+      str_detect(tolower(lugar), "global") ~ "Global",
+      str_detect(tolower(lugar), "latin|latam|chile|uruguay|colombia|brasil|bolivia|ecuador|venezuela|mexico") ~ "Latinoamérica",
+      str_detect(tolower(lugar), "argentin") ~ "Argentina",
+      TRUE ~ "Otro"
+    ),
+    # Limpiar tipo de evento
+    tipo_clean = str_to_title(tipo)
+  ) |>
+  filter(rol != "Participant")
+
+# Crear datos expandidos para el mapa de calor (cada día entre fecha_inicio y fecha_fin)
+eventos_expandidos <- eventos |>
+  filter(!is.na(fecha_inicio)) |>
+  rowwise() |>
+  mutate(
+    fecha_min = pmin(fecha_inicio, fecha_fin, na.rm = TRUE),
+    fecha_max = pmax(fecha_inicio, fecha_fin, na.rm = TRUE),
+    fechas = list(seq(fecha_min, fecha_max, by = "1 day"))
+  ) |>
+  select(-fecha_min, -fecha_max) |>
+  unnest(fechas) |>
+  ungroup()
+
+# Contar eventos por día
+eventos_por_dia <- eventos_expandidos |>
+  count(fecha = fechas, name = "n_eventos") |>
+  mutate(
+    anio = year(fecha),
+    mes = month(fecha),
+    dia = day(fecha),
+    semana_del_anio = isoweek(fecha),
+    dia_semana = wday(fecha, week_start = 1)  # Lunes = 1
+  )
+```
+
+# 📊 Resumen General/Summary
+
+## Row {height=20%}
+
+```{r}
+#| content: valuebox
+#| title:  "Total de Eventos/Events Total"
+
+list(
+  icon = "calendar-event",
+  color = "primary",
+
+  value = nrow(eventos)
+)
+```
+
+```{r}
+#| content:  valuebox
+#| title: "Años de Trayectoria/Years of Experience"
+
+list(
+  icon = "clock-history",
+  color = "success",
+  value = max(eventos$anio) - min(eventos$anio) + 1
+)
+```
+
+```{r}
+#| content: valuebox
+#| title:  "Personas Alcanzadas/People Reached"
+
+total_personas <- sum(eventos$cantidad, na.rm = TRUE)
+list(
+  icon = "people-fill",
+  color = "info",
+  value = format(total_personas, big.mark = ",")
+)
+```
+
+```{r}
+#| content: valuebox
+#| title: "Países/Regiones Alcanzados - Countries/Regions Reached"
+
+n_lugares <- eventos |>
+  filter(!is.na(lugar)) |>
+  distinct(lugar) |>
+  nrow()
+
+list(
+  icon = "globe-americas",
+  color = "warning",
+  value = n_lugares
+)
+```
+
+## Row {height=20%}
+
+```{r}
+#| content: valuebox
+#| title: "Cursos/Courses"
+
+n_cursos <- eventos |>
+  filter(tipo_clean == "Course") |>
+  nrow()
+
+list(
+  icon = "mortarboard-fill",
+  color = "secondary",
+  value = n_cursos
+)
+```
+
+```{r}
+#| content: valuebox
+#| title: "Conferencias Organizadas/Conferences Organized"
+
+n_conf <- eventos |>
+  filter(tipo_clean == "Conference") |>
+  nrow()
+
+list(
+  icon = "building",
+  color = "danger",
+  value = n_conf
+)
+```
+
+```{r}
+#| content: valuebox
+#| title: "Charlas/Talks/Keynotes"
+
+n_charlas <- eventos |>
+  filter(tipo_clean %in% c("Keynote", "Invited Talk", "Regular Talk", "Lightning Talk")) |>
+  nrow()
+
+list(
+  icon = "mic-fill",
+  color = "dark",
+  value = n_charlas
+)
+```
+
+```{r}
+#| content: valuebox
+#| title: "Online"
+
+n_online <- eventos |>
+  filter(formato_cat == "Online") |>
+  nrow()
+
+list(
+  icon = "laptop",
+  color = "light",
+  value = n_online
+)
+```
+
+## Row {height=30%}
+
+### Column {width=60%}
+
+```{r eventos-por-anio}
+#| title: "Evolución de Eventos por Año/Events Over the Years"
+
+eventos_por_anio <- eventos |>
+  count(anio) |>
+  arrange(anio)
+
+plot_ly(eventos_por_anio, x = ~anio, y = ~n, type = 'scatter', mode = 'lines+markers',
+        line = list(color = '#0d6efd', width = 3),
+        marker = list(color = '#0d6efd', size = 8),
+        hovertemplate = "Año: %{x}<br>Eventos: %{y}<extra></extra>") |>
+  layout(
+    xaxis = list(title = "Año", tickmode = "linear", dtick = 5),
+    yaxis = list(title = "Número de Eventos"),
+    hovermode = "x unified"
+  )
+```
+
+### Column {width=40%}
+
+```{r distribucion-tipo}
+#| title: "Distribución por Tipo de Evento/Event Type Distribution"
+
+eventos_por_tipo <- eventos |>
+  count(tipo_clean, sort = TRUE) |>
+  head(10)
+
+plot_ly(eventos_por_tipo, labels = ~tipo_clean, values = ~n, type = 'pie',
+        textposition = 'inside',
+        textinfo = 'label+percent',
+        hovertemplate = "%{label}<br>Cantidad: %{value}<br>Porcentaje: %{percent}<extra></extra>") |>
+  layout(showlegend = FALSE)
+```
+
+## Row {height=30%}
+
+```{r heatmap}
+#| title:  "Mapa de Calor de Actividad - Consolidado de todos los años/Activity Heatmap - Consolidated Over All Years"
+
+# Consolidar eventos por día y mes (ignorando el año)
+eventos_consolidados <- eventos_por_dia |>
+  mutate(
+    mes = month(fecha),
+    dia = day(fecha)
+  ) |>
+  group_by(mes, dia) |>
+  summarise(n_eventos = sum(n_eventos, na.rm = TRUE), .groups = "drop")
+
+# Crear grid completo para un año (usamos 2024 como año de referencia por ser bisiesto)
+fecha_inicio <- as.Date("2024-01-01")
+fecha_fin <- as.Date("2024-12-31")
+
+grid_completo <- tibble(
+  fecha = seq.Date(fecha_inicio, fecha_fin, by = "day")
+) |>
+  mutate(
+    mes = month(fecha),
+    dia = day(fecha),
+    semana_del_anio = isoweek(fecha),
+    dia_semana = wday(fecha, week_start = 1)
+  ) |>
+  left_join(eventos_consolidados, by = c("mes", "dia")) |>
+  mutate(n_eventos = replace_na(n_eventos, 0))
+
+# Crear el heatmap
+plot_ly(
+  data = grid_completo,
+  x = ~semana_del_anio,
+  y = ~dia_semana,
+  z = ~n_eventos,
+  type = "heatmap",
+  colorscale = list(
+    list(0, "#ebedf0"),
+    list(0.25, "#9be9a8"),
+    list(0.5, "#40c463"),
+    list(0.75, "#30a14e"),
+    list(1, "#216e39")
+  ),
+  hovertemplate = "Día: %{text}<br>Total eventos: %{z}<extra></extra>",
+  text = ~format(fecha, "%d de %B"),
+  showscale = TRUE,
+  colorbar = list(title = "Total<br>Eventos")
+) |>
+  layout(
+#    title = "",
+    xaxis = list(
+      title = "Semana del año",
+      tickmode = "linear",
+      dtick = 4
+    ),
+    yaxis = list(
+      title = "",
+      tickmode = "array",
+      tickvals = 1:7,
+      ticktext = c("Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"),
+      autorange = "reversed"
+    )
+  )
+```
+
+# 📈 Análisis Detallado/Detailed Analysis
+
+## Row {height=35%}
+
+### Column {width=50%}
+
+```{r eventos-por-rol}
+#| title:  "Eventos por Rol/Events by Role"
+
+eventos |>
+  count(rol, sort = TRUE) |>
+  filter(! is.na(rol)) |>
+  plot_ly(y = ~reorder(rol, n), 
+          x = ~n, 
+          type = 'bar', 
+          orientation = 'h',
+          marker = list(color = '#198754'),
+          hovertemplate = "%{x}<br>Cantidad: %{y}<extra></extra>") |>
+  layout(
+    yaxis = list(title = ""),
+    xaxis = list(title = "Cantidad"),
+    margin = list(b = 100)
+  )
+```
+
+### Column {width=50%}
+
+```{r geografico}
+#| title: "Eventos por Alcance Geográfico/Events by Geographic Reach"
+
+eventos |>
+  count(alcance, sort = TRUE) |>
+  plot_ly(x = ~reorder(alcance, n), y = ~n, type = 'bar',
+          marker = list(color = '#6f42c1'),
+          hovertemplate = "%{x}<br>Cantidad: %{y}<extra></extra>") |>
+  layout(
+    xaxis = list(title = ""),
+    yaxis = list(title = "Cantidad")
+  )
+```
+
+## Row {height=35%}
+
+### Column {width=50%}
+
+```{r personas}
+#| title: "Personas Alcanzadas por Año/People Reached Over the Years"
+
+personas_por_anio <- eventos |>
+  group_by(anio) |>
+  summarise(total = sum(cantidad, na.rm = TRUE)) |>
+  arrange(anio)
+
+plot_ly(personas_por_anio, x = ~anio, y = ~total, type = 'bar',
+        marker = list(color = '#20c997'),
+        hovertemplate = "Año: %{x}<br>Personas: %{y: ,}<extra></extra>") |>
+  layout(
+    xaxis = list(title = "Año"),
+    yaxis = list(title = "Personas Alcanzadas", tickformat = ",")
+  )
+```
+
+### Column {width=50%}
+
+```{r formato}
+#| title:  "Evolución del Formato (Online vs Presencial)/ Format Evolution (Online vs In-Person)"
+
+formato_por_anio <- eventos |>
+  filter(anio >= 2015) |>
+  count(anio, formato_cat) |>
+  pivot_wider(names_from = formato_cat, values_from = n, values_fill = 0)
+
+p <- plot_ly(formato_por_anio, x = ~anio)
+
+# Agregar trazas solo si existen las columnas
+if ("Online" %in% names(formato_por_anio)) {
+  p <- p |> add_trace(y = ~Online, name = 'Online', type = 'bar', marker = list(color = '#0dcaf0'))
+}
+if ("Presencial" %in% names(formato_por_anio)) {
+  p <- p |> add_trace(y = ~Presencial, name = 'Presencial', type = 'bar', marker = list(color = '#fd7e14'))
+}
+if ("Híbrido" %in% names(formato_por_anio)) {
+  p <- p |> add_trace(y = ~Híbrido, name = 'Híbrido', type = 'bar', marker = list(color = '#6c757d'))
+}
+if ("Otro" %in% names(formato_por_anio)) {
+  p <- p |> add_trace(y = ~Otro, name = 'Otro', type = 'bar', marker = list(color = '#adb5bd'))
+}
+
+p |>
+  layout(
+    barmode = 'stack',
+    xaxis = list(title = "Año"),
+    yaxis = list(title = "Cantidad de Eventos"),
+    legend = list(orientation = 'h', y = -0.2)
+  )
+```
+
+## Row {height=30%}
+
+### Column {width=50%}
+
+```{r top-instituciones}
+#| title: "Top 10 Instituciones/Top 10 Institutions"
+
+top_instituciones <- eventos |>
+  filter(!is.na(institucion), institucion != "") |>
+  count(institucion, sort = TRUE) |>
+  head(10)
+
+plot_ly(top_instituciones, y = ~reorder(institucion, n), x = ~n, 
+        type = 'bar', orientation = 'h',
+        marker = list(color = '#dc3545'),
+        hovertemplate = "%{y}<br>Eventos: %{x}<extra></extra>") |>
+  layout(
+    xaxis = list(title = "Número de Eventos"),
+    yaxis = list(title = ""),
+    margin = list(l = 200)
+  )
+```
+
+### Column {width=50%}
+
+```{r rol-por-anio}
+#| title:  "Distribución por Rol a lo Largo del Tiempo/Role Distribution Over Time"
+
+rol_por_anio <- eventos |>
+  filter(anio >= 2010) |>
+  count(anio, rol) |>
+  filter(!is.na(rol))
+
+plot_ly(rol_por_anio, x = ~anio, y = ~n, color = ~rol, type = 'scatter', mode = 'lines+markers',
+        hovertemplate = "Año:  %{x}<br>Rol: %{fullData. name}<br>Cantidad: %{y}<extra></extra>") |>
+  layout(
+    xaxis = list(title = "Año"),
+    yaxis = list(title = "Cantidad"),
+    legend = list(orientation = 'h', y = -0.2)
+  )
+```
+
+# 📋 Tabla Completa/Complete Table
+
+La fuente de estos datos son los informes de desempeño para INTA (1998-2022), previo a eso son los certificados que me otorgaron por las actividades realizadas y luego de 2022 es el registro que continúe realizando y que en general esta documentado en mi sitio web.  Sigo limpiando y mejorando los datos presentes por lo que el listado y los valores pueden cambiar. 
+
+The source of this data is the performance reports for INTA (1998-2022). Prior to that, it is the certificates I was awarded for the activities carried out, and after 2022, it is the record I continue to keep, which is generally documented on my website. I continue to clean and improve the data presented, so the list and values may change. 
+
+## Row
+
+```{r tabla-completa}
+#| title: "Todos los Eventos/My Full Event History"
+
+eventos |>
+  select(anio, nombre, institucion, evento, ciudad, lugar, formato, tipo, cantidad, rol, links) |>
+  arrange(desc(anio), nombre) |>
+  DT::datatable(
+    options = list(
+      pageLength = 25,
+      scrollX = TRUE,
+      dom = 'Bfrtip',
+      buttons = c('copy', 'csv', 'excel'),
+      language = list(
+        search = "Buscar:",
+        lengthMenu = "Mostrar _MENU_ eventos",
+        info = "Mostrando _START_ a _END_ de _TOTAL_ eventos",
+        paginate = list(
+          first = "Primero",
+          last = "Último",
+          `next` = "Siguiente",
+          previous = "Anterior"
+        )
+      )
+    ),
+    colnames = c(
+      "Año" = "anio",
+      "Nombre" = "nombre",
+      "Institución" = "institucion",
+      "Evento" = "evento",
+      "Ciudad" = "ciudad",
+      "Lugar/País" = "lugar",
+      "Formato" = "formato",
+      "Tipo" = "tipo",
+      "Asistentes" = "cantidad",
+      "Rol" = "rol",
+      "Enlaces" = "links"
+    ),
+    filter = "top",
+    rownames = FALSE,
+    escape = FALSE
+  ) |>
+  DT::formatStyle(
+    'Tipo',
+    backgroundColor = DT::styleEqual(
+      c('Course', 'Conference', 'Keynote', 'Invited Talk', 'Regular Talk', 'Panel'),
+      c('#cfe2ff', '#d1e7dd', '#fff3cd', '#f8d7da', '#e2e3e5', '#d3d3f3')
+    )
+  )
+```
