@@ -1,5 +1,5 @@
 ---
-title: "Mi Recorrido de Eventos/My Event History"
+title: "Mi Recorrido de Eventos"
 subtitle: "Yanina Bellini Saibene"
 format: 
   dashboard:
@@ -88,13 +88,13 @@ eventos_por_dia <- eventos_expandidos |>
   )
 ```
 
-# 📊 Resumen General/Summary
+# 📊 Resumen
 
 ## Row {height=20%}
 
 ```{r}
 #| content: valuebox
-#| title:  "Total de Eventos/Events Total"
+#| title:  "Total de Eventos"
 
 list(
   icon = "calendar-event",
@@ -106,7 +106,7 @@ list(
 
 ```{r}
 #| content:  valuebox
-#| title: "Años de Trayectoria/Years of Experience"
+#| title: "Años de Trayectoria"
 
 list(
   icon = "clock-history",
@@ -117,7 +117,7 @@ list(
 
 ```{r}
 #| content: valuebox
-#| title:  "Personas Alcanzadas/People Reached"
+#| title:  "Personas Alcanzadas"
 
 total_personas <- sum(eventos$cantidad, na.rm = TRUE)
 list(
@@ -129,7 +129,7 @@ list(
 
 ```{r}
 #| content: valuebox
-#| title: "Países/Regiones Alcanzados - Countries/Regions Reached"
+#| title: "Países/Regiones"
 
 n_lugares <- eventos |>
   filter(!is.na(lugar)) |>
@@ -147,7 +147,7 @@ list(
 
 ```{r}
 #| content: valuebox
-#| title: "Cursos/Courses"
+#| title: "Cursos"
 
 n_cursos <- eventos |>
   filter(tipo_clean == "Course") |>
@@ -162,7 +162,7 @@ list(
 
 ```{r}
 #| content: valuebox
-#| title: "Conferencias Organizadas/Conferences Organized"
+#| title: "Conferencias Organizadas"
 
 n_conf <- eventos |>
   filter(tipo_clean == "Conference") |>
@@ -177,7 +177,7 @@ list(
 
 ```{r}
 #| content: valuebox
-#| title: "Charlas/Talks/Keynotes"
+#| title: "Charlas"
 
 n_charlas <- eventos |>
   filter(tipo_clean %in% c("Keynote", "Invited Talk", "Regular Talk", "Lightning Talk")) |>
@@ -192,7 +192,7 @@ list(
 
 ```{r}
 #| content: valuebox
-#| title: "Online"
+#| title: "Eventos Online"
 
 n_online <- eventos |>
   filter(formato_cat == "Online") |>
@@ -210,7 +210,7 @@ list(
 ### Column {width=60%}
 
 ```{r eventos-por-anio}
-#| title: "Evolución de Eventos por Año/Events Over the Years"
+#| title: "Evolución de Eventos por Año"
 
 eventos_por_anio <- eventos |>
   count(anio) |>
@@ -230,7 +230,7 @@ plot_ly(eventos_por_anio, x = ~anio, y = ~n, type = 'scatter', mode = 'lines+mar
 ### Column {width=40%}
 
 ```{r distribucion-tipo}
-#| title: "Distribución por Tipo de Evento/Event Type Distribution"
+#| title: "Distribución por Tipo de Evento"
 
 eventos_por_tipo <- eventos |>
   count(tipo_clean, sort = TRUE) |>
@@ -246,7 +246,7 @@ plot_ly(eventos_por_tipo, labels = ~tipo_clean, values = ~n, type = 'pie',
 ## Row {height=30%}
 
 ```{r heatmap}
-#| title:  "Mapa de Calor de Actividad - Consolidado de todos los años/Activity Heatmap - Consolidated Over All Years"
+#| title:  "Mapa de Calor de Actividad - Consolidado de todos los años"
 
 # Consolidar eventos por día y mes (ignorando el año)
 eventos_consolidados <- eventos_por_dia |>
@@ -309,14 +309,14 @@ plot_ly(
   )
 ```
 
-# 📈 Análisis Detallado/Detailed Analysis
+# 📈 Análisis Detallado
 
 ## Row {height=35%}
 
 ### Column {width=50%}
 
 ```{r eventos-por-rol}
-#| title:  "Eventos por Rol/Events by Role"
+#| title:  "Eventos por Rol"
 
 eventos |>
   count(rol, sort = TRUE) |>
@@ -337,7 +337,7 @@ eventos |>
 ### Column {width=50%}
 
 ```{r geografico}
-#| title: "Eventos por Alcance Geográfico/Events by Geographic Reach"
+#| title: "Eventos por Alcance Geográfico"
 
 eventos |>
   count(alcance, sort = TRUE) |>
@@ -355,7 +355,7 @@ eventos |>
 ### Column {width=50%}
 
 ```{r personas}
-#| title: "Personas Alcanzadas por Año/People Reached Over the Years"
+#| title: "Personas Alcanzadas por Año"
 
 personas_por_anio <- eventos |>
   group_by(anio) |>
@@ -374,7 +374,7 @@ plot_ly(personas_por_anio, x = ~anio, y = ~total, type = 'bar',
 ### Column {width=50%}
 
 ```{r formato}
-#| title:  "Evolución del Formato (Online vs Presencial)/ Format Evolution (Online vs In-Person)"
+#| title:  "Evolución del Formato (Online vs Presencial)"
 
 formato_por_anio <- eventos |>
   filter(anio >= 2015) |>
@@ -411,7 +411,7 @@ p |>
 ### Column {width=50%}
 
 ```{r top-instituciones}
-#| title: "Top 10 Instituciones/Top 10 Institutions"
+#| title: "Top 10 Instituciones"
 
 top_instituciones <- eventos |>
   filter(!is.na(institucion), institucion != "") |>
@@ -432,7 +432,7 @@ plot_ly(top_instituciones, y = ~reorder(institucion, n), x = ~n,
 ### Column {width=50%}
 
 ```{r rol-por-anio}
-#| title:  "Distribución por Rol a lo Largo del Tiempo/Role Distribution Over Time"
+#| title:  "Distribución por Rol a lo Largo del Tiempo"
 
 rol_por_anio <- eventos |>
   filter(anio >= 2010) |>
@@ -452,12 +452,10 @@ plot_ly(rol_por_anio, x = ~anio, y = ~n, color = ~rol, type = 'scatter', mode = 
 
 La fuente de estos datos son los informes de desempeño para INTA (1998-2022), previo a eso son los certificados que me otorgaron por las actividades realizadas y luego de 2022 es el registro que continúe realizando y que en general esta documentado en mi sitio web.  Sigo limpiando y mejorando los datos presentes por lo que el listado y los valores pueden cambiar. 
 
-The source of this data is the performance reports for INTA (1998-2022). Prior to that, it is the certificates I was awarded for the activities carried out, and after 2022, it is the record I continue to keep, which is generally documented on my website. I continue to clean and improve the data presented, so the list and values may change. 
-
 ## Row
 
 ```{r tabla-completa}
-#| title: "Todos los Eventos/My Full Event History"
+#| title: "Todos los Eventos/"
 
 eventos |>
   select(anio, nombre, institucion, evento, ciudad, lugar, formato, tipo, cantidad, rol, links) |>
