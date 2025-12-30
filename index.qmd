@@ -213,7 +213,8 @@ list(
 
 ### Column {width=60%}
 
-```{r eventos-por-anio}
+```{r}
+#| label: eventos-por-anio
 #| title: "Evolución de Eventos por Año"
 
 eventos_por_anio <- eventos |>
@@ -318,6 +319,7 @@ plot_ly(
 ```
 ## Row {height="40%"}
 
+### Column {width="50%"}
 ```{r}
 top_dias <- grid_completo |>
   filter(n_eventos > 0) |>
@@ -365,6 +367,32 @@ datatable(
     backgroundRepeat = 'no-repeat',
     backgroundPosition = 'center'
   )
+```
+
+### Column {width="50%"}
+
+```{r}
+eventos_por_mes <- grid_completo |>
+  mutate(mes_nombre = month(fecha, label = TRUE, abbr = FALSE, locale = "es_ES.UTF-8")) |>
+  group_by(mes, mes_nombre) |>
+  summarise(total = sum(n_eventos), .groups = "drop") |>
+  arrange(desc(total))
+
+plot_ly(
+  data = eventos_por_mes,
+  x = ~reorder(mes_nombre, total),
+  y = ~total,
+  type = "bar",
+  marker = list(color = "#40c463"),
+  hovertemplate = "%{x}<br>Eventos: %{y}<extra></extra>"
+) |>
+  layout(
+    title = "Distribución por Mes",
+    xaxis = list(title = ""),
+    yaxis = list(title = "Total de Eventos"),
+    showlegend = FALSE
+  )
+
 ```
 
 
@@ -500,7 +528,7 @@ rol_por_anio <- eventos |>
   filter(!is.na(rol))
 
 plot_ly(rol_por_anio, x = ~anio, y = ~n, color = ~rol, type = 'scatter', mode = 'lines+markers',
-        hovertemplate = "Año:  %{x}<br>Rol: %{fullData. name}<br>Cantidad: %{y}<extra></extra>") |>
+        hovertemplate = "Año:  %{x}<br>Rol: %{fullData.name}<br>Cantidad: %{y}<extra></extra>") |>
   layout(
     xaxis = list(title = "Año"),
     yaxis = list(title = "Cantidad"),
